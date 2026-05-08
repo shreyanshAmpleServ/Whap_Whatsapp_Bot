@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>WhatsApp Bot — Control Panel</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --g: #25d366;
+        --g2: #128c7e;
+        --bg: #080c10;
+        --card: #0d1117;
+        --b1: #161b22;
+        --b2: #21262d;
+        --t: #e6edf3;
+        --m: #8b949e;
+        --acc: #25d366;
+        --warn: #f0a050;
+        --err: #f85149;
+      }
+      body {
+        font-family: "Syne", sans-serif;
+        background: var(--bg);
+        color: var(--t);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: radial-gradient(
+          ellipse 60% 40% at 50% 0%,
+          rgba(37, 211, 102, 0.06) 0%,
+          transparent 70%
+        );
+        pointer-events: none;
+      }
+
+      /* ── Header ── */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 2rem;
+        background: rgba(13, 17, 23, 0.8);
+        border-bottom: 1px solid #21262d;
+        backdrop-filter: blur(12px);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      .logo {
+        width: 40px;
+        height: 40px;
+        background: var(--g);
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        font-size: 1.3rem;
+        flex-shrink: 0;
+        box-shadow: 0 0 20px rgba(37, 211, 102, 0.3);
+      }
+      header h1 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      header h1 span {
+        color: var(--g);
+      }
+      .pill {
+        padding: 0.25rem 0.75rem;
+        border-radius: 99px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+      .pill-green {
+        background: rgba(37, 211, 102, 0.12);
+        color: var(--g);
+        border: 1px solid rgba(37, 211, 102, 0.25);
+        margin-left: auto;
+      }
+      .pill-warn {
+        background: rgba(240, 160, 80, 0.12);
+        color: var(--warn);
+        border: 1px solid rgba(240, 160, 80, 0.25);
+      }
+
+      /* ── Layout ── */
+      main {
+        max-width: 1200px;
+        margin: auto;
+        padding: 2rem;
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+      }
+      .grid4 {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      @media (max-width: 900px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+        .grid4 {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (max-width: 500px) {
+        .grid4 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* ── Cards ── */
+      .card {
+        background: var(--card);
+        border: 1px solid #21262d;
+        border-radius: 16px;
+        padding: 1.5rem;
+      }
+      .card-title {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--m);
+        margin-bottom: 1.2rem;
+      }
+
+      /* ── Stat cards ── */
+      .stat {
+        background: var(--b1);
+        border: 1px solid #21262d;
+        border-radius: 12px;
+        padding: 1.2rem;
+      }
+      .stat .label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--m);
+      }
+      .stat .value {
+        font-size: 1.9rem;
+        font-weight: 800;
+        color: var(--acc);
+        margin: 0.3rem 0;
+        line-height: 1;
+      }
+      .stat .sub {
+        font-size: 0.72rem;
+        color: var(--m);
+      }
+
+      /* ── Send form ── */
+      .form-row {
+        display: flex;
+        gap: 0.7rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.8rem;
+      }
+      input,
+      textarea,
+      select {
+        background: #0d1117;
+        border: 1px solid #30363d;
+        color: var(--t);
+        border-radius: 10px;
+        padding: 0.65rem 1rem;
+        font-family: "Syne", sans-serif;
+        font-size: 0.88rem;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      input:focus,
+      textarea:focus {
+        border-color: var(--g);
+      }
+      input[name="to"] {
+        width: 220px;
+      }
+      textarea {
+        flex: 1;
+        min-width: 180px;
+        resize: vertical;
+        min-height: 70px;
+      }
+      .btn {
+        background: var(--g);
+        color: #000;
+        border: none;
+        border-radius: 10px;
+        padding: 0.65rem 1.4rem;
+        font-family: "Syne", sans-serif;
+        font-size: 0.88rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition:
+          opacity 0.2s,
+          transform 0.1s;
+      }
+      .btn:hover {
+        opacity: 0.88;
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .btn-ghost {
+        background: transparent;
+        color: var(--m);
+        border: 1px solid #30363d;
+      }
+      .btn-ghost:hover {
+        border-color: var(--g);
+        color: var(--g);
+        opacity: 1;
+      }
+      #result {
+        border-radius: 10px;
+        padding: 0.65rem 1rem;
+        font-size: 0.83rem;
+        display: none;
+        margin-top: 0.5rem;
+      }
+      #result.ok {
+        background: rgba(37, 211, 102, 0.1);
+        color: var(--g);
+        display: block;
+        border: 1px solid rgba(37, 211, 102, 0.2);
+      }
+      #result.err {
+        background: rgba(248, 81, 73, 0.1);
+        color: var(--err);
+        display: block;
+        border: 1px solid rgba(248, 81, 73, 0.2);
+      }
+
+      /* ── Flow diagram ── */
+      .flow {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .flow-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: var(--b1);
+        border: 1px solid #21262d;
+        border-radius: 10px;
+        transition: border-color 0.2s;
+      }
+      .flow-step:hover {
+        border-color: #30363d;
+      }
+      .flow-step .num {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--g);
+        color: #000;
+        font-size: 0.75rem;
+        font-weight: 800;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        margin-top: 0.1rem;
+      }
+      .flow-step .desc {
+        flex: 1;
+      }
+      .flow-step .desc strong {
+        display: block;
+        font-size: 0.85rem;
+        margin-bottom: 0.2rem;
+      }
+      .flow-step .desc span {
+        font-size: 0.75rem;
+        color: var(--m);
+      }
+      .flow-arrow {
+        text-align: center;
+        color: #30363d;
+        font-size: 0.9rem;
+      }
+
+      /* ── Command grid ── */
+      .cmd-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 0.5rem;
+      }
+      .cmd {
+        background: var(--b1);
+        border: 1px solid #21262d;
+        border-radius: 10px;
+        padding: 0.6rem 0.9rem;
+        cursor: pointer;
+        transition: border-color 0.2s;
+      }
+      .cmd:hover {
+        border-color: var(--g);
+      }
+      .cmd code {
+        color: var(--acc);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+      .cmd .desc {
+        color: var(--m);
+        font-size: 0.72rem;
+        margin-top: 0.2rem;
+      }
+
+      /* ── Log ── */
+      .log-box {
+        background: #0a0e14;
+        border: 1px solid #21262d;
+        border-radius: 10px;
+        padding: 1rem;
+        height: 180px;
+        overflow-y: auto;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.75rem;
+        line-height: 1.7;
+      }
+      .log-line {
+        color: #8b949e;
+      }
+      .log-line.ok {
+        color: #3fb950;
+      }
+      .log-line.warn {
+        color: #d29922;
+      }
+      .log-line.err {
+        color: var(--err);
+      }
+
+      footer {
+        text-align: center;
+        color: var(--m);
+        font-size: 0.75rem;
+        padding: 2rem;
+        border-top: 1px solid #21262d;
+        margin-top: 2rem;
+      }
+      footer a {
+        color: var(--g);
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo">🤖</div>
+      <div>
+        <h1>WhatsApp Bot <span>Dashboard</span></h1>
+      </div>
+      <div class="pill pill-green" id="status-badge">● Online</div>
+    </header>
+
+    <main>
+      <!-- Stat strip -->
+      <div class="grid4">
+        <div class="stat">
+          <div class="label">Uptime</div>
+          <div class="value" id="uptime">—</div>
+          <div class="sub">Since last restart</div>
+        </div>
+        <div class="stat">
+          <div class="label">Status</div>
+          <div class="value" style="font-size: 1.4rem">🟢 Live</div>
+          <div class="sub">Webhook active</div>
+        </div>
+        <div class="stat">
+          <div class="label">Platform</div>
+          <div class="value" style="font-size: 1rem; margin-top: 0.4rem">
+            Whapi.Cloud
+          </div>
+          <div class="sub">WhatsApp API</div>
+        </div>
+        <div class="stat">
+          <div class="label">Version</div>
+          <div class="value" style="font-size: 1.4rem; margin-top: 0.2rem">
+            v2.0
+          </div>
+          <div class="sub">Advanced Bot</div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <!-- Left column -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem">
+          <!-- <div class="card">
+            <div class="card-title">📤 Send Test Message</div>
+            <div class="form-row">
+              <input name="to" id="sendTo" placeholder="Phone: 919876543210" />
+            </div>
+            <div class="form-row">
+              <textarea id="sendMsg" placeholder="Your message..."></textarea>
+            </div>
+            <div style="display: flex; gap: 0.5rem">
+              <button class="btn" id="sendBtn" onclick="sendMessage()">
+                Send ➤
+              </button>
+              <button class="btn btn-ghost" onclick="sendMenu()">Send Menu</button>
+              <button class="btn btn-ghost" onclick="sendMenu()">Menu</button>
+              <button class="btn btn-ghost" onclick="sendButtonsUI()">
+                Buttons
+              </button>
+              <button class="btn btn-ghost" onclick="sendListUI()">List</button>
+              
+            </div>
+            <div id="result"></div>
+          </div> -->
+
+          <div class="card">
+            <div class="card-title">📤 Dynamic Interactive Builder</div>
+
+            <div class="form-row">
+              <input id="to" placeholder="Phone: 919876543210" />
+              <select id="msgType">
+                <option value="text">Text</option>
+                <option value="button">Buttons</option>
+                <option value="list">List</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <input id="header" placeholder="Header (optional)" />
+            </div>
+
+            <div class="form-row">
+              <textarea id="body" placeholder="Message body"></textarea>
+            </div>
+
+            <div class="form-row">
+              <input id="footer" placeholder="Footer (optional)" />
+            </div>
+
+            <!-- Buttons UI -->
+            <div id="buttonsUI" style="display: none">
+              <h4>Buttons</h4>
+              <div id="buttonsContainer"></div>
+              <button class="btn btn-ghost" onclick="addButton()">
+                ➕ Add Button
+              </button>
+            </div>
+
+            <!-- List UI -->
+            <div id="listUI" style="display: none">
+              <h4>List Sections</h4>
+              <input
+                id="listLabel"
+                placeholder="Button label (e.g. Open Menu)"
+              />
+              <div id="sectionsContainer"></div>
+              <button class="btn btn-ghost" onclick="addSection()">
+                ➕ Add Section
+              </button>
+            </div>
+
+            <div style="margin-top: 10px">
+              <button class="btn" onclick="sendDynamic()">Send 🚀</button>
+            </div>
+
+            <div id="result"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">⚡ Message Processing Pipeline</div>
+            <div class="flow">
+              <div class="flow-step">
+                <div class="num">1</div>
+                <div class="desc">
+                  <strong>Receive via Webhook</strong
+                  ><span>POST /webhook — Whapi.Cloud delivers message</span>
+                </div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-step">
+                <div class="num">2</div>
+                <div class="desc">
+                  <strong>Rate Limit Check</strong
+                  ><span>20 msg/min per user — blocks spammers</span>
+                </div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-step">
+                <div class="num">3</div>
+                <div class="desc">
+                  <strong>Mark Read + Typing</strong
+                  ><span>Mark as read → show typing indicator (700ms)</span>
+                </div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-step">
+                <div class="num">4</div>
+                <div class="desc">
+                  <strong>Media Handler</strong
+                  ><span
+                    >Image/Video/Audio/Doc → smart reply + action buttons</span
+                  >
+                </div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-step">
+                <div class="num">5</div>
+                <div class="desc">
+                  <strong>Interactive Handler</strong
+                  ><span
+                    >Button clicks / list selections → dispatched
+                    instantly</span
+                  >
+                </div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-step">
+                <div class="num">6</div>
+                <div class="desc">
+                  <strong>State Machine</strong
+                  ><span
+                    >Multi-step flows: calc, weather, reminder, poll,
+                    feedback…</span
+                  >
+                </div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-step">
+                <div class="num">7</div>
+                <div class="desc">
+                  <strong>!Command Handler</strong
+                  ><span>20+ prefix commands with admin restrictions</span>
+                </div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-step">
+                <div class="num">8</div>
+                <div class="desc">
+                  <strong>NLP Fallback</strong
+                  ><span
+                    >Keyword detection → greeting / joke / menu / smart
+                    reply</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 1.5rem">
+          <div class="card">
+            <div class="card-title">📋 Available Commands</div>
+            <div class="cmd-grid">
+              <div class="cmd" onclick="copyCmd('!start')">
+                <code>!start</code>
+                <div class="desc">Welcome + buttons</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!menu')">
+                <code>!menu</code>
+                <div class="desc">Full menu list</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!help')">
+                <code>!help</code>
+                <div class="desc">All commands</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!ping')">
+                <code>!ping</code>
+                <div class="desc">Latency check</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!info')">
+                <code>!info</code>
+                <div class="desc">Bot info</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!time')">
+                <code>!time</code>
+                <div class="desc">Date & time</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!calc 2+2')">
+                <code>!calc</code>
+                <div class="desc">Calculator</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!weather Mumbai')">
+                <code>!weather</code>
+                <div class="desc">Weather info</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!remind 5 Drink water')">
+                <code>!remind</code>
+                <div class="desc">Set reminder</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!joke')">
+                <code>!joke</code>
+                <div class="desc">Random joke</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!quote')">
+                <code>!quote</code>
+                <div class="desc">Inspirational</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!trivia')">
+                <code>!trivia</code>
+                <div class="desc">Quiz question</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!dice')">
+                <code>!dice</code>
+                <div class="desc">Roll dice</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!flip')">
+                <code>!flip</code>
+                <div class="desc">Coin flip</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!poll Q|A|B|C')">
+                <code>!poll</code>
+                <div class="desc">Create poll</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!feedback Great bot!')">
+                <code>!feedback</code>
+                <div class="desc">Send feedback</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!broadcast Hello everyone')">
+                <code>!broadcast</code>
+                <div class="desc">Admin only</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!stats')">
+                <code>!stats</code>
+                <div class="desc">Admin only</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!ban 919876543210')">
+                <code>!ban</code>
+                <div class="desc">Admin only</div>
+              </div>
+              <div class="cmd" onclick="copyCmd('!status Bot is online!')">
+                <code>!status</code>
+                <div class="desc">Admin only</div>
+              </div>
+            </div>
+            <div
+              style="font-size: 0.72rem; color: var(--m); margin-top: 0.8rem"
+            >
+              💡 Click any command to copy it
+            </div>
+          </div>
+
+          <!-- Live log -->
+          <div class="card">
+            <div class="card-title">📡 Activity Log</div>
+            <div class="log-box" id="logBox">
+              <div class="log-line ok">
+                [SYSTEM] Bot initialized successfully
+              </div>
+              <div class="log-line ok">
+                [SYSTEM] Webhook endpoint ready at POST /webhook
+              </div>
+              <div class="log-line ok">[SCHEDULER] Cron jobs initialized</div>
+              <div class="log-line">
+                [SYSTEM] Waiting for incoming messages...
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.8rem">
+              <button
+                class="btn btn-ghost"
+                style="font-size: 0.78rem; padding: 0.4rem 0.9rem"
+                onclick="clearLog()"
+              >
+                Clear Log
+              </button>
+              <button
+                class="btn btn-ghost"
+                style="font-size: 0.78rem; padding: 0.4rem 0.9rem"
+                onclick="addTestLog()"
+              >
+                Simulate Message
+              </button>
+            </div>
+          </div>
+
+          <!-- Supported operations -->
+          <div class="card">
+            <div class="card-title">🔀 When Message Arrives — Operations</div>
+            <div
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+                font-size: 0.82rem;
+              "
+            >
+              <div style="display: flex; gap: 0.6rem; align-items: center">
+                <span>📩</span
+                ><span>Auto <b>mark as read</b> + show typing indicator</span>
+              </div>
+              <div style="display: flex; gap: 0.6rem; align-items: center">
+                <span>📷</span
+                ><span
+                  >Media → <b>action buttons</b> (sticker, save,
+                  describe…)</span
+                >
+              </div>
+              <div style="display: flex; gap: 0.6rem; align-items: center">
+                <span>👆</span
+                ><span>Button click → <b>instant handler dispatch</b></span>
+              </div>
+              <div style="display: flex; gap: 0.6rem; align-items: center">
+                <span>📋</span
+                ><span>List selection → <b>start flow or reply</b></span>
+              </div>
+              <div style="display: flex; gap: 0.6rem; align-items: center">
+                <span>🔄</span
+                ><span>State machine → <b>multi-step conversations</b></span>
+              </div>
+              <div style="display: flex; gap: 0.6rem; align-items: center">
+                <span>🧠</span
+                ><span>Unknown text → <b>NLP keyword detection</b></span>
+              </div>
+              <div style="display: flex; gap: 0.6rem; align-items: center">
+                <span>📊</span
+                ><span>Poll votes → <b>live results with bar chart</b></span>
+              </div>
+              <div style="display: flex; gap: 0.6rem; align-items: center">
+                <span>⏰</span
+                ><span>Reminders → <b>timer fires & sends message</b></span>
+              </div>
+              <div style="display: flex; gap: 0.6rem; align-items: center">
+                <span>🔒</span
+                ><span>Admin commands → <b>phone-number-based auth</b></span>
+              </div>
+              <div style="display: flex; gap: 0.6rem; align-items: center">
+                <span>🚫</span
+                ><span>Banned users → <b>silently blocked</b></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      Advanced WhatsApp Bot &nbsp;•&nbsp;
+      <a href="https://whapi.cloud/docs" target="_blank">Whapi.Cloud Docs</a>
+      &nbsp;•&nbsp; Node.js + Express
+    </footer>
+
+    <script>
+      // Health polling
+      async function fetchHealth() {
+        try {
+          const r = await fetch("/health");
+          const d = await r.json();
+          const s = d.uptime;
+          const fmt = [
+            Math.floor(s / 86400) && Math.floor(s / 86400) + "d",
+            Math.floor((s % 86400) / 3600) &&
+              Math.floor((s % 86400) / 3600) + "h",
+            Math.floor((s % 3600) / 60) && Math.floor((s % 3600) / 60) + "m",
+            Math.floor(s % 60) + "s",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          document.getElementById("uptime").textContent = fmt || "< 1s";
+          document.getElementById("status-badge").textContent = "● Online";
+          document.getElementById("status-badge").className = "pill pill-green";
+        } catch {
+          document.getElementById("status-badge").textContent = "● Offline";
+          document.getElementById("status-badge").className = "pill pill-warn";
+        }
+      }
+      fetchHealth();
+      setInterval(fetchHealth, 50000);
+
+      document.getElementById("msgType").addEventListener("change", (e) => {
+        const type = e.target.value;
+
+        document.getElementById("buttonsUI").style.display =
+          type === "button" ? "block" : "none";
+
+        document.getElementById("listUI").style.display =
+          type === "list" ? "block" : "none";
+      });
+
+      function addButton() {
+        const div = document.createElement("div");
+        div.className = "form-row";
+
+        div.innerHTML = `
+    <input placeholder="Title" class="btnTitle" />
+    <input placeholder="ID" class="btnId" />
+  `;
+
+        document.getElementById("buttonsContainer").appendChild(div);
+      }
+      function addSection() {
+        const section = document.createElement("div");
+        section.style.border = "1px solid #333";
+        section.style.padding = "10px";
+        section.style.margin = "10px 0";
+
+        section.innerHTML = `
+    <input placeholder="Section Title" class="sectionTitle" />
+    <div class="rows"></div>
+    <button onclick="addRow(this)">➕ Add Row</button>
+  `;
+
+        document.getElementById("sectionsContainer").appendChild(section);
+      }
+      function addRow(btn) {
+        const row = document.createElement("div");
+        row.className = "form-row";
+
+        row.innerHTML = `
+    <input placeholder="Title" class="rowTitle" />
+    <input placeholder="Description" class="rowDesc" />
+    <input placeholder="ID" class="rowId" />
+  `;
+
+        btn.parentElement.querySelector(".rows").appendChild(row);
+      }
+      // Send message
+      async function sendMessage() {
+        const to = document.getElementById("sendTo").value.trim();
+        const msg = document.getElementById("sendMsg").value.trim();
+        const res = document.getElementById("result");
+        const btn = document.getElementById("sendBtn");
+        if (!to || !msg) {
+          res.className = "err";
+          res.textContent = "Fill in both fields.";
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const r = await fetch("/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: `${to}@s.whatsapp.net`, message: msg }),
+          });
+          const d = await r.json();
+          if (d.success) {
+            res.className = "ok";
+            res.textContent = "✅ Message sent!";
+            addLog(`Sent to ${to}: ${msg.slice(0, 40)}`, "ok");
+          } else {
+            res.className = "err";
+            res.textContent = `❌ ${d.error}`;
+          }
+        } catch (e) {
+          res.className = "err";
+          res.textContent = `❌ ${e.message}`;
+        }
+        btn.disabled = false;
+      }
+
+      async function sendListUI() {
+        const to = document.getElementById("sendTo").value.trim();
+
+        const payload = {
+          to: `${to}@s.whatsapp.net`,
+          body: "Select a service",
+          buttonText: "Open Menu",
+          sections: [
+            {
+              title: "Services",
+              rows: [
+                { id: "svc_calc", title: "Calculator" },
+                { id: "svc_weather", title: "Weather" },
+              ],
+            },
+          ],
+        };
+
+        await fetch("/send-list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        addLog("List sent", "ok");
+      }
+
+      async function sendButtonsUI() {
+        const to = document.getElementById("sendTo").value.trim();
+
+        const payload = {
+          to: `${to}@s.whatsapp.net`,
+          body: "Choose an option:",
+          buttons: [
+            { id: "btn1", title: "Option 1" },
+            { id: "btn2", title: "Option 2" },
+          ],
+        };
+
+        await fetch("/send-buttons", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        addLog("Buttons sent", "ok");
+      }
+
+      // Send menu command
+      async function sendMenu() {
+        const to = document.getElementById("sendTo").value.trim();
+        if (!to) {
+          alert("Enter a phone number first.");
+          return;
+        }
+        document.getElementById("sendMsg").value = "!menu";
+        await sendMessage();
+      }
+
+      // Copy command
+      function copyCmd(cmd) {
+        navigator.clipboard.writeText(cmd).catch(() => {});
+        document.getElementById("sendMsg").value = cmd;
+        document.getElementById("result").className = "ok";
+        document.getElementById("result").textContent = `Copied: ${cmd}`;
+        document.getElementById("result").style.display = "block";
+      }
+
+      // Log
+      function addLog(msg, type = "") {
+        const box = document.getElementById("logBox");
+        const t = new Date().toLocaleTimeString();
+        const d = document.createElement("div");
+        d.className = `log-line ${type}`;
+        d.textContent = `[${t}] ${msg}`;
+        box.appendChild(d);
+        box.scrollTop = box.scrollHeight;
+      }
+      function clearLog() {
+        document.getElementById("logBox").innerHTML = "";
+      }
+      function addTestLog() {
+        const msgs = [
+          { m: '[IN] +91987654XXXX | type=text | "hello"', t: "ok" },
+          { m: '[BTN] +91987654XXXX → "main_menu"', t: "ok" },
+          { m: '[IN] +91987654XXXX | type=image | ""', t: "" },
+          { m: "[STATE] CALC_AWAIT_EXPR → result=42", t: "ok" },
+          { m: "[RATE] +91987654XXXX exceeded limit", t: "warn" },
+        ];
+        const r = msgs[Math.floor(Math.random() * msgs.length)];
+        addLog(r.m, r.t);
+      }
+      async function sendDynamic() {
+        const to = document.getElementById("to").value.trim();
+        const type = document.getElementById("msgType").value;
+
+        if (!to) return alert("Enter phone number");
+
+        const payload = {
+          to: `${to}@s.whatsapp.net`,
+          type,
+        };
+
+        const header = document.getElementById("header").value;
+        const body = document.getElementById("body").value;
+        const footer = document.getElementById("footer").value;
+
+        if (header) payload.header = { text: header };
+        if (body) payload.body = { text: body };
+        if (footer) payload.footer = { text: footer };
+
+        // BUTTONS
+        if (type === "button") {
+          const buttons = [];
+
+          document
+            .querySelectorAll("#buttonsContainer .form-row")
+            .forEach((row) => {
+              const title = row.querySelector(".btnTitle").value;
+              const id = row.querySelector(".btnId").value;
+
+              if (title && id) {
+                buttons.push({
+                  type: "quick_reply",
+                  title,
+                  id,
+                });
+              }
+            });
+
+          payload.action = { buttons };
+        }
+
+        // LIST
+        if (type === "list") {
+          const sections = [];
+
+          document
+            .querySelectorAll("#sectionsContainer > div")
+            .forEach((sec) => {
+              const title = sec.querySelector(".sectionTitle").value;
+              const rows = [];
+
+              sec.querySelectorAll(".rows .form-row").forEach((r) => {
+                rows.push({
+                  title: r.querySelector(".rowTitle").value,
+                  description: r.querySelector(".rowDesc").value,
+                  id: r.querySelector(".rowId").value,
+                });
+              });
+
+              sections.push({ title, rows });
+            });
+
+          payload.action = {
+            list: {
+              label: document.getElementById("listLabel").value || "Open Menu",
+              sections,
+            },
+          };
+        }
+
+        try {
+          const res = await fetch("/send-interactive", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await res.json();
+
+          document.getElementById("result").className = "ok";
+          document.getElementById("result").textContent = "✅ Sent!";
+        } catch (err) {
+          document.getElementById("result").className = "err";
+          document.getElementById("result").textContent = err.message;
+        }
+      }
+    </script>
+  </body>
+</html>

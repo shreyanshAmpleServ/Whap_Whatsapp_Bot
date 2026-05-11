@@ -1,6 +1,6 @@
 const whapi = require("../services/whapi");
 const session = require("../services/sessionStore");
-const { checkImageBlur, checkMediaBlur } = require("../utils/blurCheck");
+const { checkMediaBlur } = require("../utils/blurCheck");
 
 // ============================================================
 // ENTRY POINT
@@ -14,22 +14,30 @@ async function handleMessage(message) {
 
     const userId = from;
     const text = (message.text?.body || "").trim();
-    // ============================
-    // 🔥 HANDLE BUTTON / INTERACTIVE
-    // ============================
+
+    // 1. Handle image upload
+    if (type === "image" || type == "document") {
+      return handleImage(message);
+    }
+    const state = await session.getState(userId);
+
+    if (!state || (state && Object.keys(state).length == 0)) {
+      return whapi.sendText(
+        chat_id,
+        "📸 Please send an image to start the process.",
+      );
+    }
     if (type === "interactive") {
       return handleInteractive(message);
     }
     if (type === "reply") {
       return handleReply(message);
     }
-    // 1. Handle image upload
-    if (type === "image" || type == "document") {
-      return handleImage(message);
-    }
-    (console.log("????????", session.get(userId)), session.getState(userId));
+
+    (console.log("????????", await session.get(userId)),
+      await session.getState(userId));
     // 2. Handle active flow
-    const state = session.getState(userId);
+
     if (state) {
       const handled = await handleFlow(message, state);
       if (handled) return;
@@ -156,7 +164,7 @@ async function handleDocumentFlow(chatId, userId, userRole, lang = "english") {
   // 🧑‍💼 AGENT FLOW
   // ============================
   if (userRole === "AGENT") {
-    session.setState(userId, "AGENT_TRANSACTION", { lang });
+    await session.setState(userId, "AGENT_TRANSACTION", { lang });
 
     return whapi.sendText(chatId, msg.enterTransaction);
   }
@@ -164,7 +172,7 @@ async function handleDocumentFlow(chatId, userId, userRole, lang = "english") {
   // ============================
   // 🚚 DRIVER FLOW
   // ============================
-  session.setState(userId, "DRIVER_DOC_TYPE", { lang });
+  await session.setState(userId, "DRIVER_DOC_TYPE", { lang });
 
   return whapi.sendButtons(chatId, msg.selectDoc, [
     { id: "doc_pod", title: titles.pod },
@@ -199,7 +207,7 @@ const buttonTitles = {
 //   // 🧑‍💼 AGENT FLOW
 //   // ============================
 //   if (userRole === "AGENT") {
-//     session.setState(userId, "AGENT_TRANSACTION");
+//    await session.setState(userId, "AGENT_TRANSACTION");
 
 //     return whapi.sendText(
 //       chatId,
@@ -210,7 +218,7 @@ const buttonTitles = {
 //   // ============================
 //   // 🚚 DRIVER FLOW
 //   // ============================
-//   session.setState(userId, "DRIVER_DOC_TYPE");
+//  await session.setState(userId, "DRIVER_DOC_TYPE");
 
 //   return whapi.sendButtons(chatId, "📦 Select document type:", [
 //     { id: "doc_pod", title: "POD" },
@@ -248,7 +256,7 @@ function getMessage(lang, type) {
 
 //   // DRIVER FLOW
 //   if (btnId === "user_driver") {
-//     session.setState(userId, "DRIVER_DOC_TYPE");
+//    await session.setState(userId, "DRIVER_DOC_TYPE");
 
 //     return whapi.sendButtons(chat_id, "📦 Select document type:", [
 //       { id: "doc_pod", title: "POD" },
@@ -264,7 +272,7 @@ function getMessage(lang, type) {
 //       doc_other: "Other",
 //     };
 
-//     session.delete(userId);
+//     await session.delete(userId);
 
 //     return whapi.sendText(
 //       chat_id,
@@ -274,7 +282,7 @@ function getMessage(lang, type) {
 
 //   // AGENT FLOW
 //   if (btnId === "user_agent") {
-//     session.setState(userId, "AGENT_TRANSACTION");
+//    await session.setState(userId, "AGENT_TRANSACTION");
 
 //     return whapi.sendText(
 //       chat_id,
@@ -283,7 +291,7 @@ function getMessage(lang, type) {
 //   }
 
 //   if (["agent_gatepass", "agent_intercity", "agent_other"].includes(btnId)) {
-//     const data = session.get(userId);
+//     const data = await session.get(userId);
 
 //     const typeMap = {
 //       agent_gatepass: "Gate Pass",
@@ -291,7 +299,7 @@ function getMessage(lang, type) {
 //       agent_other: "Other",
 //     };
 
-//     session.delete(userId);
+//     await session.delete(userId);
 
 //     return whapi.sendText(
 //       chat_id,
@@ -308,13 +316,13 @@ async function handleInteractive(message) {
   const btnId = interactive?.button_reply?.id || interactive?.list_reply?.id;
   if (!btnId) return;
 
-  const stateData = session.get(userId) || {};
+  const stateData = (await session.get(userId)) || {};
   const lang = stateData.lang || "english";
   const msg = messages[lang];
   console.log("GEt ", lang, stateData, session);
   // DRIVER FLOW
   if (btnId === "user_driver") {
-    session.setState(userId, "DRIVER_DOC_TYPE", { lang });
+    await session.setState(userId, "DRIVER_DOC_TYPE", { lang });
 
     return whapi.sendButtons(chat_id, msg.selectDoc, [
       { id: "doc_pod", title: "POD" },
@@ -330,7 +338,7 @@ async function handleInteractive(message) {
   //     doc_other: "Other",
   //   };
 
-  //   session.delete(userId);
+  //   await session.delete(userId);
 
   //   return whapi.sendText(chat_id, msg.successDoc(typeMap[btnId]));
   // }
@@ -340,7 +348,7 @@ async function handleInteractive(message) {
       "ButtonsV3:doc_receipt": "Receipt",
     };
     if (typeMap[btnId]) {
-      session.delete(userId);
+      await session.delete(userId);
       return whapi.sendText(chat_id, msg.successDoc(typeMap[btnId]));
     } else {
       await whapi.sendText(
@@ -352,7 +360,7 @@ async function handleInteractive(message) {
 
   // OTHER BUTTON FLOW
   if (btnId == "ButtonsV3:doc_other") {
-    session.setState(userId, "DRIVER_OTHER_INPUT", {
+    await session.setState(userId, "DRIVER_OTHER_INPUT", {
       lang,
     });
 
@@ -361,13 +369,13 @@ async function handleInteractive(message) {
 
   // AGENT FLOW
   if (btnId === "user_agent") {
-    session.setState(userId, "AGENT_TRANSACTION", { lang });
+    await session.setState(userId, "AGENT_TRANSACTION", { lang });
 
     return whapi.sendText(chat_id, msg.enterTransaction);
   }
 
   // if (["agent_gatepass", "agent_intercity", "agent_other"].includes(btnId)) {
-  //   const data = session.get(userId);
+  //   const data = await session.get(userId);
 
   //   const typeMap = {
   //     agent_gatepass: "Gate Pass",
@@ -375,19 +383,19 @@ async function handleInteractive(message) {
   //     agent_other: "Other",
   //   };
 
-  //   session.delete(userId);
+  //   await session.delete(userId);
 
   //   return whapi.sendText(chat_id, msg.submitted(data, typeMap[btnId]));
   // }
   if (["agent_gatepass", "agent_intercity"].includes(btnId)) {
-    const data = session.get(userId);
+    const data = await session.get(userId);
 
     const typeMap = {
       agent_gatepass: "Gate Pass",
       agent_intercity: "Intercity",
     };
     if (typeMap[btnId]) {
-      session.delete(userId);
+      await session.delete(userId);
       return whapi.sendText(chat_id, msg.submitted(data, typeMap[btnId]));
     } else {
       await whapi.sendText(
@@ -395,16 +403,16 @@ async function handleInteractive(message) {
         "📸 Please send an image to start the process.",
       );
     }
-    // session.delete(userId);
+    // await session.delete(userId);
 
     // return whapi.sendText(chat_id, msg.submitted(data, typeMap[btnId]));
   }
 
   // AGENT OTHER FLOW
   if (btnId === "agent_other") {
-    const data = session.get(userId);
+    const data = await session.get(userId);
 
-    session.setState(userId, "AGENT_OTHER_INPUT", {
+    await session.setState(userId, "AGENT_OTHER_INPUT", {
       ...data,
       lang,
     });
@@ -414,16 +422,16 @@ async function handleInteractive(message) {
 }
 async function handleReply(message) {
   const { chat_id, from: userId, reply } = message;
-  console.log("Reply message", message);
   const btnId = reply?.buttons_reply?.id || reply?.buttons_reply?.id;
   if (!btnId) return;
 
-  const stateData = session.get(userId) || {};
+  const stateData = (await session.get(userId)) || {};
   const lang = stateData.lang || "english";
   const msg = messages[lang];
+  console.log("Reply message", stateData, btnId, message);
   // DRIVER FLOW
   if (btnId === "user_driver") {
-    session.setState(userId, "DRIVER_DOC_TYPE", { lang });
+    await session.setState(userId, "DRIVER_DOC_TYPE", { lang });
 
     return whapi.sendButtons(chat_id, msg.selectDoc, [
       { id: "doc_pod", title: "POD" },
@@ -439,17 +447,17 @@ async function handleReply(message) {
   //     doc_other: "Other",
   //   };
 
-  //   session.delete(userId);
+  //   await session.delete(userId);
 
   //   return whapi.sendText(chat_id, msg.successDoc(typeMap[btnId]));
   // }
   if (["ButtonsV3:doc_pod", "ButtonsV3:doc_receipt"].includes(btnId)) {
     const typeMap = {
-      doc_pod: "POD",
-      doc_receipt: "Receipt",
+      "ButtonsV3:doc_pod": "POD",
+      "ButtonsV3:doc_receipt": "Receipt",
     };
     if (typeMap[btnId]) {
-      session.delete(userId);
+      await session.delete(userId);
       return whapi.sendText(chat_id, msg.successDoc(typeMap[btnId]));
     } else {
       await whapi.sendText(
@@ -461,51 +469,52 @@ async function handleReply(message) {
 
   // OTHER BUTTON FLOW
   if (btnId === "ButtonsV3:doc_other") {
-    session.setState(userId, "DRIVER_OTHER_INPUT", {
+    await session.setState(userId, "DRIVER_OTHER_INPUT", {
       lang,
     });
-
     return whapi.sendText(chat_id, "📝 Please enter other document type:");
   }
 
   // AGENT FLOW
   if (btnId === "user_agent") {
-    session.setState(userId, "AGENT_TRANSACTION", { lang });
+    await session.setState(userId, "AGENT_TRANSACTION", { lang });
 
     return whapi.sendText(chat_id, msg.enterTransaction);
   }
   // AGENT FLOW
   if (btnId === "user_agent") {
-    session.setState(userId, "AGENT_TRANSACTION", { lang });
+    await session.setState(userId, "AGENT_TRANSACTION", { lang });
 
     return whapi.sendText(chat_id, msg.enterTransaction);
   }
   if (["ButtonsV3:agent_other"].includes(btnId)) {
-    const data = session.get(userId);
+    const data = await session.get(userId);
 
-    session.setState(userId, "AGENT_OTHER_INPUT", {
-      ...data,
-      lang,
-    });
-
-    return whapi.sendText(chat_id, "📝 Please enter other document type:");
+    if (Object.keys(data).length !== 0) {
+      await session.setState(userId, "AGENT_OTHER_INPUT", {
+        ...data,
+        lang,
+      });
+      return whapi.sendText(chat_id, "📝 Please enter other document type:");
+    } else {
+      return whapi.sendText(
+        chat_id,
+        "📸 Please send an image to start the process.",
+      );
+    }
   }
   if (
-    [
-      "ButtonsV3:agent_gatepass",
-      "ButtonsV3:agent_intercity",
-      "ButtonsV3:agent_other",
-    ].includes(btnId)
+    ["ButtonsV3:agent_gatepass", "ButtonsV3:agent_intercity"].includes(btnId)
   ) {
-    const data = session.get(userId);
+    const data = await session.get(userId);
 
     const typeMap = {
-      agent_gatepass: "Gate Pass",
-      agent_intercity: "Intercity",
-      agent_other: "Other",
+      "ButtonsV3:agent_gatepass": "Gate Pass",
+      "ButtonsV3:agent_intercity": "Intercity",
+      "ButtonsV3:agent_other": "Other",
     };
-
-    session.delete(userId);
+    console.log("!:!!!!!!", data);
+    await session.delete(userId);
     if (typeMap[btnId]) {
       return whapi.sendText(chat_id, msg.submitted(data, typeMap[btnId]));
     } else {
@@ -523,13 +532,13 @@ async function handleFlow(message, state) {
   const { chat_id, from: userId } = message;
   const text = (message.text?.body || "").trim();
 
-  const stateData = session.get(userId) || {};
+  const stateData = (await session.get(userId)) || {};
   const lang = stateData.lang || "english";
   const msg = messages[lang];
   console.log("STATE : ", state);
   switch (state) {
     case "AGENT_TRANSACTION": {
-      session.setState(userId, "AGENT_DOC_NUMBER", {
+      await session.setState(userId, "AGENT_DOC_NUMBER", {
         ...stateData,
         transactionType: text,
       });
@@ -539,9 +548,9 @@ async function handleFlow(message, state) {
     }
 
     case "AGENT_DOC_NUMBER": {
-      const data = session.get(userId);
+      const data = await session.get(userId);
 
-      session.setState(userId, "AGENT_DOC_TYPE", {
+      await session.setState(userId, "AGENT_DOC_TYPE", {
         ...data,
         docNumber: text,
       });
@@ -557,7 +566,7 @@ async function handleFlow(message, state) {
     case "DRIVER_OTHER_INPUT": {
       const otherType = text;
 
-      session.delete(userId);
+      await session.delete(userId);
 
       await whapi.sendText(
         chat_id,
@@ -568,10 +577,10 @@ async function handleFlow(message, state) {
     }
 
     case "AGENT_OTHER_INPUT": {
-      const data = session.get(userId);
+      const data = await session.get(userId);
       const otherType = text;
 
-      session.delete(userId);
+      await session.delete(userId);
 
       await whapi.sendText(
         chat_id,
@@ -594,7 +603,7 @@ async function handleFlow(message, state) {
 
 //   switch (state) {
 //     case "AGENT_TRANSACTION": {
-//       session.setState(userId, "AGENT_DOC_NUMBER", {
+//      await session.setState(userId, "AGENT_DOC_NUMBER", {
 //         transactionType: text,
 //       });
 
@@ -603,9 +612,9 @@ async function handleFlow(message, state) {
 //     }
 
 //     case "AGENT_DOC_NUMBER": {
-//       const data = session.get(userId);
+//       const data = await session.get(userId);
 
-//       session.setState(userId, "AGENT_DOC_TYPE", {
+//      await session.setState(userId, "AGENT_DOC_TYPE", {
 //         ...data,
 //         docNumber: text,
 //       });

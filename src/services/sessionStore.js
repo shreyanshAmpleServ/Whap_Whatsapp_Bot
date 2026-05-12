@@ -1,66 +1,45 @@
-const db = require("../config/database");
+const redisClient = require("../utils/redis");
 
-const DEFAULT_TTL = 30 * 60 * 1000;
+const DEFAULT_TTL = 60 * 30; // 30 min in seconds
 
 class SessionStore {
+  // =================================
+  // Generate Redis Key
+  // =================================
+  getKey(userId) {
+    return `session:${userId}`;
+  }
+
+  // =================================
+  // GET SESSION
+  // =================================
   async get(userId) {
     try {
-      const databaseName = "default";
-      const useApi = false;
+      const key = this.getKey(userId);
 
-      const query = `
-        SELECT *
-        FROM user_sessions
-        WHERE userId = @userId
-      `;
+      const data = await redisClient.get(key);
 
-      const result = await db.executeQuery(
-        databaseName,
-        query,
-        { userId },
-        useApi,
-      );
-
-      if (!result || !result.length) {
+      if (!data) {
         return null;
       }
 
-      const session = result[0];
+      // Refresh TTL
+      await redisClient.expire(key, DEFAULT_TTL);
 
-      // Expiry Check
-      if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
-        await this.delete(userId);
-
-        return null;
-      }
-
-      // Parse Stored JSON String
-      let parsedData = {};
-
-      try {
-        parsedData = session.data ? JSON.parse(session.data) : {};
-      } catch (err) {
-        console.error("Session Parse Error:", err.message);
-      }
-
-      return {
-        state: session.state,
-        ...parsedData,
-      };
+      return JSON.parse(data);
     } catch (error) {
-      console.error("Error fetching session:", error);
+      console.error("Redis GET Error:", error);
 
       return null;
     }
   }
 
-  /**
-   * Set Session
-   */
+  // =================================
+  // SET SESSION
+  // =================================
   async set(userId, data) {
     try {
-      const databaseName = "default";
-      const useApi = false;
+      const key = this.getKey(userId);
 
       const existing = (await this.get(userId)) || {};
 
@@ -69,66 +48,21 @@ class SessionStore {
         ...data,
       };
 
-      const expiresAt = new Date(Date.now() + DEFAULT_TTL);
-
-      const query = `
-        MERGE user_sessions AS target
-        USING (
-          SELECT
-            @userId AS userId
-        ) AS source
-
-        ON target.userId = source.userId
-
-        WHEN MATCHED THEN
-          UPDATE SET
-            state = @state,
-            data = @data,
-            expiresAt = @expiresAt,
-            updatedAt = GETDATE()
-
-        WHEN NOT MATCHED THEN
-          INSERT (
-            userId,
-            state,
-            data,
-            expiresAt,
-            createdAt,
-            updatedAt
-          )
-          VALUES (
-            @userId,
-            @state,
-            @data,
-            @expiresAt,
-            GETDATE(),
-            GETDATE()
-          );
-      `;
-
-      await db.executeQuery(
-        databaseName,
-        query,
-        {
-          userId,
-          state: merged.state,
-          data: JSON.stringify(merged),
-          expiresAt,
-        },
-        useApi,
-      );
+      await redisClient.set(key, JSON.stringify(merged), {
+        EX: DEFAULT_TTL,
+      });
 
       return merged;
     } catch (error) {
-      console.error("Error setting session:", error);
+      console.error("Redis SET Error:", error);
 
       return null;
     }
   }
 
-  /**
-   * Set State
-   */
+  // =================================
+  // SET STATE
+  // =================================
   async setState(userId, state, extra = {}) {
     return this.set(userId, {
       ...extra,
@@ -136,84 +70,69 @@ class SessionStore {
     });
   }
 
-  /**
-   * Get State
-   */
+  // =================================
+  // GET STATE
+  // =================================
   async getState(userId) {
     const session = await this.get(userId);
 
     return session?.state || null;
   }
 
-  /**
-   * Delete Session
-   */
+  // =================================
+  // DELETE SESSION
+  // =================================
   async delete(userId) {
     try {
-      const databaseName = "default";
-      const useApi = false;
+      const key = this.getKey(userId);
 
-      const query = `
-        DELETE FROM user_sessions
-        WHERE userId = @userId
-      `;
-
-      await db.executeQuery(databaseName, query, { userId }, useApi);
-    } catch (error) {
-      console.error("Error deleting session:", error);
-    }
-  }
-
-  /**
-   * Has Session
-   */
-  async has(userId) {
-    return (await this.get(userId)) !== null;
-  }
-
-  /**
-   * Cleanup Expired Sessions
-   */
-  async cleanup() {
-    try {
-      const databaseName = "default";
-      const useApi = false;
-
-      const query = `
-        DELETE FROM user_sessions
-        WHERE expiresAt < GETDATE()
-      `;
-
-      await db.executeQuery(databaseName, query, {}, useApi);
+      await redisClient.del(key);
 
       return true;
     } catch (error) {
-      console.error("Cleanup Error:", error);
+      console.error("Redis DELETE Error:", error);
 
       return false;
     }
   }
 
-  /**
-   * Session Stats
-   */
+  // =================================
+  // HAS SESSION
+  // =================================
+  async has(userId) {
+    try {
+      const key = this.getKey(userId);
+
+      const exists = await redisClient.exists(key);
+
+      return exists === 1;
+    } catch (error) {
+      console.error("Redis HAS Error:", error);
+
+      return false;
+    }
+  }
+
+  // =================================
+  // CLEANUP
+  // =================================
+  async cleanup() {
+    // Redis auto handles expiry
+    return true;
+  }
+
+  // =================================
+  // STATS
+  // =================================
   async stats() {
     try {
-      const databaseName = "default";
-      const useApi = false;
-
-      const query = `
-        SELECT COUNT(*) as total
-        FROM user_sessions
-      `;
-
-      const result = await db.executeQuery(databaseName, query, {}, useApi);
+      const keys = await redisClient.keys("session:*");
 
       return {
-        activeSessions: result[0]?.total || 0,
+        activeSessions: keys.length,
       };
     } catch (error) {
-      console.error("Stats Error:", error);
+      console.error("Redis Stats Error:", error);
 
       return {
         activeSessions: 0,
@@ -223,6 +142,234 @@ class SessionStore {
 }
 
 module.exports = new SessionStore();
+/////////////////////////////////////////////////////////////////////////////////////////
+// const db = require("../config/database");
+
+// const DEFAULT_TTL = 30 * 60 * 1000;
+
+// class SessionStore {
+//   async get(userId) {
+//     try {
+//       const databaseName = "default";
+//       const useApi = false;
+
+//       const query = `
+//         SELECT *
+//         FROM user_sessions
+//         WHERE userId = @userId
+//       `;
+
+//       const result = await db.executeQuery(
+//         databaseName,
+//         query,
+//         { userId },
+//         useApi,
+//       );
+
+//       if (!result || !result.length) {
+//         return null;
+//       }
+
+//       const session = result[0];
+
+//       // Expiry Check
+//       if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
+//         await this.delete(userId);
+
+//         return null;
+//       }
+
+//       // Parse Stored JSON String
+//       let parsedData = {};
+
+//       try {
+//         parsedData = session.data ? JSON.parse(session.data) : {};
+//       } catch (err) {
+//         console.error("Session Parse Error:", err.message);
+//       }
+
+//       return {
+//         state: session.state,
+//         ...parsedData,
+//       };
+//     } catch (error) {
+//       console.error("Error fetching session:", error);
+
+//       return null;
+//     }
+//   }
+
+//   /**
+//    * Set Session
+//    */
+//   async set(userId, data) {
+//     try {
+//       const databaseName = "default";
+//       const useApi = false;
+
+//       const existing = (await this.get(userId)) || {};
+
+//       const merged = {
+//         ...existing,
+//         ...data,
+//       };
+
+//       const expiresAt = new Date(Date.now() + DEFAULT_TTL);
+
+//       const query = `
+//         MERGE user_sessions AS target
+//         USING (
+//           SELECT
+//             @userId AS userId
+//         ) AS source
+
+//         ON target.userId = source.userId
+
+//         WHEN MATCHED THEN
+//           UPDATE SET
+//             state = @state,
+//             data = @data,
+//             expiresAt = @expiresAt,
+//             updatedAt = GETDATE()
+
+//         WHEN NOT MATCHED THEN
+//           INSERT (
+//             userId,
+//             state,
+//             data,
+//             expiresAt,
+//             createdAt,
+//             updatedAt
+//           )
+//           VALUES (
+//             @userId,
+//             @state,
+//             @data,
+//             @expiresAt,
+//             GETDATE(),
+//             GETDATE()
+//           );
+//       `;
+
+//       await db.executeQuery(
+//         databaseName,
+//         query,
+//         {
+//           userId,
+//           state: merged.state,
+//           data: JSON.stringify(merged),
+//           expiresAt,
+//         },
+//         useApi,
+//       );
+
+//       return merged;
+//     } catch (error) {
+//       console.error("Error setting session:", error);
+
+//       return null;
+//     }
+//   }
+
+//   /**
+//    * Set State
+//    */
+//   async setState(userId, state, extra = {}) {
+//     return this.set(userId, {
+//       ...extra,
+//       state,
+//     });
+//   }
+
+//   /**
+//    * Get State
+//    */
+//   async getState(userId) {
+//     const session = await this.get(userId);
+
+//     return session?.state || null;
+//   }
+
+//   /**
+//    * Delete Session
+//    */
+//   async delete(userId) {
+//     try {
+//       const databaseName = "default";
+//       const useApi = false;
+
+//       const query = `
+//         DELETE FROM user_sessions
+//         WHERE userId = @userId
+//       `;
+
+//       await db.executeQuery(databaseName, query, { userId }, useApi);
+//     } catch (error) {
+//       console.error("Error deleting session:", error);
+//     }
+//   }
+
+//   /**
+//    * Has Session
+//    */
+//   async has(userId) {
+//     return (await this.get(userId)) !== null;
+//   }
+
+//   /**
+//    * Cleanup Expired Sessions
+//    */
+//   async cleanup() {
+//     try {
+//       const databaseName = "default";
+//       const useApi = false;
+
+//       const query = `
+//         DELETE FROM user_sessions
+//         WHERE expiresAt < GETDATE()
+//       `;
+
+//       await db.executeQuery(databaseName, query, {}, useApi);
+
+//       return true;
+//     } catch (error) {
+//       console.error("Cleanup Error:", error);
+
+//       return false;
+//     }
+//   }
+
+//   /**
+//    * Session Stats
+//    */
+//   async stats() {
+//     try {
+//       const databaseName = "default";
+//       const useApi = false;
+
+//       const query = `
+//         SELECT COUNT(*) as total
+//         FROM user_sessions
+//       `;
+
+//       const result = await db.executeQuery(databaseName, query, {}, useApi);
+
+//       return {
+//         activeSessions: result[0]?.total || 0,
+//       };
+//     } catch (error) {
+//       console.error("Stats Error:", error);
+
+//       return {
+//         activeSessions: 0,
+//       };
+//     }
+//   }
+// }
+
+// module.exports = new SessionStore();
+
+/////////////////////////////////////////////////////////////////////////////////////////
 
 // const { PrismaClient } = require("@prisma/client");
 

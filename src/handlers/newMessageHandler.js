@@ -538,7 +538,7 @@ async function handleFlow(message, state) {
   console.log("STATE : ", state);
   switch (state) {
     case "AGENT_TRANSACTION": {
-      await session.setState(userId, "AGENT_DOC_NUMBER", {
+      session.setState(userId, "AGENT_DOC_NUMBER", {
         ...stateData,
         transactionType: text,
       });
@@ -550,7 +550,7 @@ async function handleFlow(message, state) {
     case "AGENT_DOC_NUMBER": {
       const data = await session.get(userId);
 
-      await session.setState(userId, "AGENT_DOC_TYPE", {
+      session.setState(userId, "AGENT_DOC_TYPE", {
         ...data,
         docNumber: text,
       });

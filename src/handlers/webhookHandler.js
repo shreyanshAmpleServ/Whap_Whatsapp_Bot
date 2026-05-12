@@ -30,9 +30,9 @@ async function processWebhook(payload) {
         console.log(`User: ${incoming} → ${isAgent ? "AGENT" : "DRIVER"}`);
 
         // 👇 Inject role into message
-        message.userRole = isAgent ? "DRIVER" : "AGENT";
+        message.userRole = isAgent ? "AGENT" : "DRIVER";
 
-        if (message.userRole == "AGENT") {
+        if (message.userRole == "DRIVER") {
           console.log("Other message: ");
           return;
         }

@@ -1,15 +1,16 @@
-const whapi = require("../services/whapi");
+// const whapi = require("../services/whapi");
 const session = require("../services/sessionStore");
 const { checkMediaBlur } = require("../utils/blurCheck");
+const WhapiService = require("../services/whapi");
 
 // ============================================================
 // ENTRY POINT
 // ============================================================
 async function handleMessage(message) {
   try {
-    const { type, from, chat_id, from_me } = message;
+    const { type, from, chat_id, from_me, whapi_token } = message;
     console.log("Message : getttttt", message);
-
+    const whapi = new WhapiService(whapi_token);
     if (from_me) return;
 
     const userId = from;
@@ -17,7 +18,7 @@ async function handleMessage(message) {
 
     // 1. Handle image upload
     if (type === "image" || type == "document") {
-      return handleImage(message);
+      return handleImage(message, whapi);
     }
     const state = await session.getState(userId);
 
@@ -28,10 +29,10 @@ async function handleMessage(message) {
       );
     }
     if (type === "interactive") {
-      return handleInteractive(message);
+      return handleInteractive(message, whapi);
     }
     if (type === "reply") {
-      return handleReply(message);
+      return handleReply(message, whapi);
     }
 
     (console.log("????????", await session.get(userId)),
@@ -39,7 +40,7 @@ async function handleMessage(message) {
     // 2. Handle active flow
 
     if (state) {
-      const handled = await handleFlow(message, state);
+      const handled = await handleFlow(message, state, whapi);
       if (handled) return;
     }
 
@@ -56,7 +57,7 @@ async function handleMessage(message) {
 // ============================================================
 // IMAGE HANDLER
 // ============================================================
-async function handleImage(message) {
+async function handleImage(message, whapi) {
   const { chat_id, type, from: userId, userRole } = message;
   console.log("Media Handle ");
   const media = message.image || message.document;
@@ -110,7 +111,13 @@ async function handleImage(message) {
     //   return;
     // }
 
-    return handleDocumentFlow(chat_id, userId, userRole, (lang = result.lang));
+    return handleDocumentFlow(
+      chat_id,
+      userId,
+      userRole,
+      (lang = result.lang),
+      whapi,
+    );
   }
 
   // ============================================================
@@ -127,7 +134,13 @@ async function handleImage(message) {
       return;
     }
 
-    return handleDocumentFlow(chat_id, userId, userRole, (lang = result.lang));
+    return handleDocumentFlow(
+      chat_id,
+      userId,
+      userRole,
+      (lang = result.lang),
+      whapi,
+    );
   }
 
   // ============================================================
@@ -156,7 +169,13 @@ async function handleImage(message) {
       `This file type is not supported for blur validation.`,
   );
 }
-async function handleDocumentFlow(chatId, userId, userRole, lang = "english") {
+async function handleDocumentFlow(
+  chatId,
+  userId,
+  userRole,
+  lang = "english",
+  whapi,
+) {
   const msg = messages[lang] || messages.english;
   const titles = buttonTitles[lang] || buttonTitles.english;
 
@@ -164,7 +183,7 @@ async function handleDocumentFlow(chatId, userId, userRole, lang = "english") {
   // 🧑‍💼 AGENT FLOW
   // ============================
   if (userRole === "AGENT") {
-    await session.setState(userId, "AGENT_TRANSACTION", { lang });
+    session.setState(userId, "AGENT_TRANSACTION", { lang });
 
     return whapi.sendText(chatId, msg.enterTransaction);
   }
@@ -172,7 +191,7 @@ async function handleDocumentFlow(chatId, userId, userRole, lang = "english") {
   // ============================
   // 🚚 DRIVER FLOW
   // ============================
-  await session.setState(userId, "DRIVER_DOC_TYPE", { lang });
+  session.setState(userId, "DRIVER_DOC_TYPE", { lang });
 
   return whapi.sendButtons(chatId, msg.selectDoc, [
     { id: "doc_pod", title: titles.pod },
@@ -310,7 +329,7 @@ function getMessage(lang, type) {
 //     );
 //   }
 // }
-async function handleInteractive(message) {
+async function handleInteractive(message, whapi) {
   const { chat_id, from: userId, interactive } = message;
 
   const btnId = interactive?.button_reply?.id || interactive?.list_reply?.id;
@@ -322,7 +341,7 @@ async function handleInteractive(message) {
   console.log("GEt ", lang, stateData, session);
   // DRIVER FLOW
   if (btnId === "user_driver") {
-    await session.setState(userId, "DRIVER_DOC_TYPE", { lang });
+    session.setState(userId, "DRIVER_DOC_TYPE", { lang });
 
     return whapi.sendButtons(chat_id, msg.selectDoc, [
       { id: "doc_pod", title: "POD" },
@@ -420,7 +439,7 @@ async function handleInteractive(message) {
     return whapi.sendText(chat_id, "📝 Please enter other document type:");
   }
 }
-async function handleReply(message) {
+async function handleReply(message, whapi) {
   const { chat_id, from: userId, reply } = message;
   const btnId = reply?.buttons_reply?.id || reply?.buttons_reply?.id;
   if (!btnId) return;
@@ -528,7 +547,7 @@ async function handleReply(message) {
 // ============================================================
 // FLOW HANDLER
 // ============================================================
-async function handleFlow(message, state) {
+async function handleFlow(message, state, whapi) {
   const { chat_id, from: userId } = message;
   const text = (message.text?.body || "").trim();
 

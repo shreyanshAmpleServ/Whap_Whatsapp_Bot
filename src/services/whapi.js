@@ -5,27 +5,41 @@ const config = require("../../config/config");
 const logger = require("../utils/logger");
 
 class WhapiService {
-  constructor() {
+  constructor(token) {
     this.client = axios.create({
-      baseURL: config.whapi.apiUrl,
+      baseURL: "https://gate.whapi.cloud",
+
       headers: {
-        Authorization: `Bearer ${config.whapi.token}`,
+        Authorization: `Bearer ${token}`,
+
         "Content-Type": "application/json",
       },
+
       timeout: 30000,
     });
-
-    // Response interceptor for logging
-    this.client.interceptors.response.use(
-      (res) => res,
-      (err) => {
-        logger.error(
-          `Whapi API Error: ${err.response?.status} - ${JSON.stringify(err.response?.data)}`,
-        );
-        throw err;
-      },
-    );
   }
+  // class WhapiService {
+  //   constructor() {
+  //     this.client = axios.create({
+  //       baseURL: config.whapi.apiUrl,
+  //       headers: {
+  //         Authorization: `Bearer ${config.whapi.token}`,
+  //         "Content-Type": "application/json",
+  //       },
+  //       timeout: 30000,
+  //     });
+
+  //     // Response interceptor for logging
+  //     this.client.interceptors.response.use(
+  //       (res) => res,
+  //       (err) => {
+  //         logger.error(
+  //           `Whapi API Error: ${err.response?.status} - ${JSON.stringify(err.response?.data)}`,
+  //         );
+  //         throw err;
+  //       },
+  //     );
+  //   }
 
   // ─── Sending Messages ────────────────────────────────────────────────
 
@@ -323,4 +337,5 @@ class WhapiService {
   }
 }
 
-module.exports = new WhapiService();
+// module.exports = new WhapiService();
+module.exports = WhapiService;

@@ -7,7 +7,10 @@ const path = require("path");
 
 const config = require("../config/config");
 const logger = require("./utils/logger");
-const whapi = require("./services/whapi");
+// const whapi = require("./services/whapi");
+const WhapiService = require("./services/whapi");
+
+const { resolveTenant } = require("./utils/tenentResolver.js");
 const { processWebhook } = require("./handlers/webhookHandler");
 const { initScheduler } = require("./services/scheduler");
 const flowRoute = require("./Route/flowRoute.js");
@@ -56,12 +59,52 @@ app.get("/health", (req, res) => {
 /**
  * Main webhook endpoint — Whapi.Cloud sends all events here
  */
+// app.post("/webhook", async (req, res) => {
+//   // Acknowledge immediately to prevent timeouts
+//   res.sendStatus(200);
+//   // console.log("Received webhook payload:", req.body, config.number);
+//   try {
+//     await processWebhook(req.body);
+//   } catch (err) {
+//     logger.error(`Webhook processing error: ${err.message}`);
+//   }
+// });
 app.post("/webhook", async (req, res) => {
-  // Acknowledge immediately to prevent timeouts
   res.sendStatus(200);
-  // console.log("Received webhook payload:", req.body, config.number);
+
   try {
-    await processWebhook(req.body);
+    console.log("Request l???", req.body);
+    // =====================================
+    // RECEIVER NUMBER
+    // =====================================
+    const receiver = req.body?.channel_id || req.body?.to;
+
+    if (!receiver) {
+      return logger.error("Receiver number missing");
+    }
+
+    // =====================================
+    // LOAD TENANT CONFIG
+    // =====================================
+    const tenant = await resolveTenant(receiver);
+
+    if (!tenant) {
+      return logger.error("Tenant not found");
+    }
+
+    // =====================================
+    // CREATE DYNAMIC WHAPI
+    // =====================================
+    const whapi = new WhapiService(tenant.whapi_token);
+
+    // =====================================
+    // PROCESS WEBHOOK
+    // =====================================
+    await processWebhook(req.body, {
+      tenant,
+      whapi,
+      databaseName: tenant.databaseName,
+    });
   } catch (err) {
     logger.error(`Webhook processing error: ${err.message}`);
   }
@@ -70,73 +113,73 @@ app.post("/webhook", async (req, res) => {
 /**
  * Manual send endpoint (for testing or external triggers)
  */
-app.post("/send", async (req, res) => {
-  const { to, message } = req.body;
-  if (!to || !message) {
-    return res.status(400).json({ error: "to and message are required" });
-  }
-  try {
-    const result = await whapi.sendText(to, message);
-    res.json({ success: true, result });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-app.post("/send-interactive", async (req, res) => {
-  try {
-    const payload = req.body;
-    console.log("Received interactive message payload:", payload);
-    if (!payload.to) {
-      return res.status(400).json({ error: "Missing 'to'" });
-    }
+// app.post("/send", async (req, res) => {
+//   const { to, message } = req.body;
+//   if (!to || !message) {
+//     return res.status(400).json({ error: "to and message are required" });
+//   }
+//   try {
+//     const result = await whapi.sendText(to, message);
+//     res.json({ success: true, result });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+// app.post("/send-interactive", async (req, res) => {
+//   try {
+//     const payload = req.body;
+//     console.log("Received interactive message payload:", payload);
+//     if (!payload.to) {
+//       return res.status(400).json({ error: "Missing 'to'" });
+//     }
 
-    const result = await whapi.sendInteractive(payload);
+//     const result = await whapi.sendInteractive(payload);
 
-    res.json({ success: true, result });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-});
-app.post("/send-menu", async (req, res) => {
-  const { to } = req.body;
+//     res.json({ success: true, result });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+// app.post("/send-menu", async (req, res) => {
+//   const { to } = req.body;
 
-  try {
-    // simulate user sending !menu
-    await handleMessage({
-      from: to,
-      chat_id: to,
-      type: "text",
-      text: { body: "!menu" },
-    });
+//   try {
+//     // simulate user sending !menu
+//     await handleMessage({
+//       from: to,
+//       chat_id: to,
+//       type: "text",
+//       text: { body: "!menu" },
+//     });
 
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+//     res.json({ success: true });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
-app.post("/send-list", async (req, res) => {
-  const { to, body, buttonText, sections } = req.body;
+// app.post("/send-list", async (req, res) => {
+//   const { to, body, buttonText, sections } = req.body;
 
-  try {
-    const result = await whapi.sendList(to, body, buttonText, sections);
-    res.json({ success: true, result });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+//   try {
+//     const result = await whapi.sendList(to, body, buttonText, sections);
+//     res.json({ success: true, result });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
-app.post("/send-buttons", async (req, res) => {
-  const { to, body, buttons } = req.body;
+// app.post("/send-buttons", async (req, res) => {
+//   const { to, body, buttons } = req.body;
 
-  try {
-    const result = await whapi.sendButtons(to, body, buttons);
-    res.json({ success: true, result });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+//   try {
+//     const result = await whapi.sendButtons(to, body, buttons);
+//     res.json({ success: true, result });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 /**
  * Dashboard (simple HTML page)

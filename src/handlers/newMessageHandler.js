@@ -1,7 +1,11 @@
-// const whapi = require("../services/whapi");
 const session = require("../services/sessionStore");
 const { checkMediaBlur } = require("../utils/blurCheck");
 const WhapiService = require("../services/whapi");
+const axios = require("axios");
+const uploadFileToNG = require("../utils/backblaze");
+const fs = require("fs");
+const mimeTypes = require("mime-types");
+const path = require("path");
 
 // ============================================================
 // ENTRY POINT
@@ -62,7 +66,6 @@ async function handleImage(message, whapi) {
   console.log("Media Handle ");
   const media = message.image || message.document;
   if (type !== "image" && type !== "document") {
-    console.log("Not get IMages  >>", media);
     return; // ignore other types
   }
   if (!media) {
@@ -71,15 +74,64 @@ async function handleImage(message, whapi) {
   }
 
   const mime = media.mime_type || "";
-  const fileName = media.file_name || "file";
+  // const fileName = media.file_name || "file";
 
-  console.log("!!!!Not Get Media Url", media);
-  const mediaUrl = await whapi.downloadMedia(media.id);
-  console.log("Not Get Media Url", mediaUrl);
-  if (!mediaUrl) {
+  // console.log("!!!!Not Get Media Url", media);
+  // const mediaUrl = await whapi.downloadMedia(media.id);
+  // console.log("Not Get Media Url", mediaUrl);
+  // if (!mediaUrl) {
+  //   await whapi.sendText(chat_id, "❌ Failed to fetch file.");
+  //   return;
+  // }
+  // ============================================================
+  // MIME + EXTENSION
+  // ============================================================
+  const mimeType = media.mime_type || "image/jpeg";
+
+  const extension = mimeTypes.extension(mimeType) || "jpg";
+
+  // ============================================================
+  // GENERATE FILE NAME
+  // ============================================================
+  const fileName = media.file_name || `image_${Date.now()}.${extension}`;
+
+  console.log("Generated File Name :", fileName);
+
+  // ============================================================
+  // DOWNLOAD MEDIA BUFFER
+  // ============================================================
+  const mediaBuffer = await whapi.downloadMedia(media.id);
+
+  if (!mediaBuffer) {
     await whapi.sendText(chat_id, "❌ Failed to fetch file.");
     return;
   }
+  // ============================================================
+  // CREATE src/uploads DIRECTORY
+  // ============================================================
+  const uploadsDir = path.join(process.cwd(), "src", "uploads");
+
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  // ============================================================
+  // SAVE FILE
+  // ============================================================
+  const tempPath = path.join(uploadsDir, fileName);
+
+  fs.writeFileSync(tempPath, mediaBuffer);
+
+  console.log("Saved File :", tempPath);
+
+  // const uploadsDir = path.join(__dirname, "uploads");
+
+  // if (!fs.existsSync(uploadsDir)) {
+  //   fs.mkdirSync(uploadsDir, { recursive: true });
+  // }
+  // const tempPath = path.join(uploadsDir, `${Date.now()}_${fileName}`);
+
+  // fs.writeFileSync(tempPath, mediaUrl);
 
   // ============================================================
   // 🖼️ IMAGE (blur check)
@@ -95,21 +147,36 @@ async function handleImage(message, whapi) {
     }
 
     // const isBlurry = await checkMediaBlur(mediaUrl, mime);
-    const result = await checkMediaBlur(mediaUrl, mime);
+    const result = await checkMediaBlur(mediaBuffer, mime);
     console.log("Languange ", result);
 
     if (result.isBlurry) {
       await whapi.sendText(chat_id, getMessage(result.lang, "blurry"));
       return;
     }
+    // ============================================================
+    // UPLOAD TO NG API
+    // ============================================================
+    const uploadRes = await uploadFileToNG({
+      filePath: tempPath,
+      fileName,
+      mimeType: mime,
+      docType: type,
+    });
+    // ============================================================
+    // GET PUBLIC URL
+    // ============================================================
+    const publicUrl = uploadRes?.data?.public_url || uploadRes?.public_url;
 
-    // if (isBlurry) {
-    //   await whapi.sendText(
-    //     chat_id,
-    //     "❌ The image is blurry. Please upload a clear one.",
-    //   );
-    //   return;
-    // }
+    console.log("PUBLIC URL :", publicUrl);
+
+    // ============================================================
+    // DELETE LOCAL FILE AFTER UPLOAD
+    // ============================================================
+    if (fs.existsSync(tempPath)) {
+      fs.unlinkSync(tempPath);
+      console.log("Local file deleted :", tempPath);
+    }
 
     return handleDocumentFlow(
       chat_id,
@@ -117,6 +184,8 @@ async function handleImage(message, whapi) {
       userRole,
       (lang = result.lang),
       whapi,
+      publicUrl,
+      (docPath = tempPath),
     );
   }
 
@@ -124,7 +193,7 @@ async function handleImage(message, whapi) {
   // 📄 PDF (blur check)
   // ============================================================
   if (mime === "application/pdf") {
-    const isBlurry = await checkMediaBlur(mediaUrl, mime);
+    const isBlurry = await checkMediaBlur(mediaBuffer, mime);
 
     if (isBlurry) {
       await whapi.sendText(
@@ -140,6 +209,8 @@ async function handleImage(message, whapi) {
       userRole,
       (lang = result.lang),
       whapi,
+      publicUrl,
+      (docPath = tempPath),
     );
   }
 
@@ -175,6 +246,8 @@ async function handleDocumentFlow(
   userRole,
   lang = "english",
   whapi,
+  publicUrl,
+  docPath,
 ) {
   const msg = messages[lang] || messages.english;
   const titles = buttonTitles[lang] || buttonTitles.english;
@@ -183,7 +256,11 @@ async function handleDocumentFlow(
   // 🧑‍💼 AGENT FLOW
   // ============================
   if (userRole === "AGENT") {
-    session.setState(userId, "AGENT_TRANSACTION", { lang });
+    session.setState(userId, "AGENT_TRANSACTION", {
+      lang,
+      docUrl: publicUrl,
+      docPath,
+    });
 
     return whapi.sendText(chatId, msg.enterTransaction);
   }
@@ -191,7 +268,11 @@ async function handleDocumentFlow(
   // ============================
   // 🚚 DRIVER FLOW
   // ============================
-  session.setState(userId, "DRIVER_DOC_TYPE", { lang });
+  session.setState(userId, "DRIVER_DOC_TYPE", {
+    lang,
+    docUrl: publicUrl,
+    docPath,
+  });
 
   return whapi.sendButtons(chatId, msg.selectDoc, [
     { id: "doc_pod", title: titles.pod },
@@ -475,9 +556,14 @@ async function handleReply(message, whapi) {
       "ButtonsV3:doc_pod": "POD",
       "ButtonsV3:doc_receipt": "Receipt",
     };
+    const sessionData = await session.get(userId);
+    console.log("Session Data for Reply", sessionData);
     if (typeMap[btnId]) {
       await session.delete(userId);
-      return whapi.sendText(chat_id, msg.successDoc(typeMap[btnId]));
+      return whapi.sendText(
+        chat_id,
+        msg.successDoc(typeMap[btnId], sessionData.docUrl || "N/A"),
+      );
     } else {
       await whapi.sendText(
         chat_id,
@@ -657,7 +743,13 @@ const messages = {
     enterTransaction: "📑 Enter *Transaction Type* (e.g., Invoice, SO):",
     enterDocNo: "🔢 Enter *Document Number*:",
     selectDocType: "📄 Select Document Type:",
-    successDoc: (type) => `✅ *${type}* document received successfully.`,
+    successDoc: (
+      type,
+      publicUrl,
+    ) => `✅ *${type}* document received successfully.
+    Document URL: *${publicUrl}*
+    Thank you for your patience!`,
+
     submitted: (data, type) =>
       `✅ Document submitted!\n\n` +
       `📑 Transaction: *${data.transactionType}*\n` +

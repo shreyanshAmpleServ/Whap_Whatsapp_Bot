@@ -202,7 +202,29 @@ async function handleImage(message, whapi) {
       );
       return;
     }
+    // ============================================================
+    // UPLOAD TO NG API
+    // ============================================================
+    const uploadRes = await uploadFileToNG({
+      filePath: tempPath,
+      fileName,
+      mimeType: mime,
+      docType: type,
+    });
+    // ============================================================
+    // GET PUBLIC URL
+    // ============================================================
+    const publicUrl = uploadRes?.data?.public_url || uploadRes?.public_url;
 
+    console.log("PUBLIC URL :", publicUrl);
+
+    // ============================================================
+    // DELETE LOCAL FILE AFTER UPLOAD
+    // ============================================================
+    if (fs.existsSync(tempPath)) {
+      fs.unlinkSync(tempPath);
+      console.log("Local file deleted :", tempPath);
+    }
     return handleDocumentFlow(
       chat_id,
       userId,
@@ -251,6 +273,7 @@ async function handleDocumentFlow(
 ) {
   const msg = messages[lang] || messages.english;
   const titles = buttonTitles[lang] || buttonTitles.english;
+  const agentTitles = agentButtonTitles[lang] || agentButtonTitles.english;
 
   // ============================
   // 🧑‍💼 AGENT FLOW
@@ -261,8 +284,12 @@ async function handleDocumentFlow(
       docUrl: publicUrl,
       docPath,
     });
-
-    return whapi.sendText(chatId, msg.enterTransaction);
+    return whapi.sendButtons(chatId, msg.enterTransaction, [
+      { id: "agent_shipmentOrder", title: agentButtonTitles.shipmentOrder },
+      { id: "agent_fileMaster", title: agentButtonTitles.fileMaster },
+      { id: "agent_booking", title: agentButtonTitles.booking },
+    ]);
+    // return whapi.sendText(chatId, msg.enterTransaction);
   }
 
   // ============================
@@ -300,6 +327,28 @@ const buttonTitles = {
     pod: "POD",
     receipt: "Risiti",
     other: "Nyingine",
+  },
+};
+const agentButtonTitles = {
+  english: {
+    shipmentOrder: "Shipment Order",
+    fileMaster: "File Master",
+    booking: "Booking",
+  },
+  hindi: {
+    shipmentOrder: "शिपमेंट ऑर्डर",
+    fileMaster: "फ़ाइल मास्टर",
+    booking: "बुकिंग",
+  },
+  arabic: {
+    shipmentOrder: "أمر الشحنة",
+    fileMaster: "ملف رئيسي",
+    booking: "الحجز",
+  },
+  swahili: {
+    shipmentOrder: "Agizo la Usafirishaji",
+    fileMaster: "Faili Kuu",
+    booking: "Uhifadhi",
   },
 };
 // async function handleDocumentFlow(chatId, userId, userRole) {
@@ -344,9 +393,6 @@ function getMessage(lang, type) {
 
   return messages[lang]?.[type] || messages.english[type];
 }
-// ============================================================
-// BUTTON HANDLER
-// ============================================================
 // async function handleInteractive(message) {
 //   const { chat_id, from: userId, interactive } = message;
 
@@ -571,21 +617,74 @@ async function handleReply(message, whapi) {
       );
     }
   }
+  if (
+    [
+      "ButtonsV3:agent_shipmentOrder",
+      "ButtonsV3:agent_booking",
+      "ButtonsV3:agent_fileMaster",
+    ].includes(btnId)
+  ) {
+    const typeMap = {
+      "ButtonsV3:agent_shipmentOrder": "Shipment Order",
+      "ButtonsV3:agent_fileMaster": "File Master",
+      "ButtonsV3:agent_booking": "Booking",
+    };
+    const sessionData = await session.get(userId);
+    console.log("Session Data for Reply", sessionData);
+    if (typeMap[btnId]) {
+      await session.setState(userId, "TRANSACTION_SUB_TYPE", {
+        lang,
+        transactionType: typeMap[btnId],
+      });
+
+      return whapi.sendButtons(chatId, msg.enterTransaction, [
+        { id: "agent_shipmentOrder", title: agentButtonTitles.shipmentOrder },
+        { id: "agent_fileMaster", title: agentButtonTitles.fileMaster },
+        { id: "agent_booking", title: agentButtonTitles.booking },
+      ]);
+    } else {
+      await whapi.sendText(
+        chat_id,
+        "📸 Please send an image to start the process.",
+      );
+    }
+  }
+  if (
+    [
+      "ButtonsV3:agent_shipmentOrder",
+      "ButtonsV3:agent_booking",
+      "ButtonsV3:agent_fileMaster",
+    ].includes(btnId)
+  ) {
+    const typeMap = {
+      "ButtonsV3:agent_shipmentOrder": "Shipment Order",
+      "ButtonsV3:agent_fileMaster": "File Master",
+      "ButtonsV3:agent_booking": "Booking",
+    };
+    const sessionData = await session.get(userId);
+    console.log("Session Data for Reply", sessionData);
+    if (typeMap[btnId]) {
+      await session.setState(userId, "AGENT_DOC_NUMBER", {
+        lang,
+        transactionType: typeMap[btnId],
+      });
+      return whapi.sendText(chat_id, msg.enterTransactionSubType);
+    } else {
+      await whapi.sendText(
+        chat_id,
+        "📸 Please send an image to start the process.",
+      );
+    }
+  }
 
   // OTHER BUTTON FLOW
-  if (btnId === "ButtonsV3:doc_other") {
-    await session.setState(userId, "DRIVER_OTHER_INPUT", {
-      lang,
-    });
-    return whapi.sendText(chat_id, "📝 Please enter other document type:");
-  }
+  // if (btnId === "ButtonsV3:doc_other") {
+  //   await session.setState(userId, "DRIVER_OTHER_INPUT", {
+  //     lang,
+  //   });
+  //   return whapi.sendText(chat_id, "📝 Please enter other document type:");
+  // }
 
-  // AGENT FLOW
-  if (btnId === "user_agent") {
-    await session.setState(userId, "AGENT_TRANSACTION", { lang });
-
-    return whapi.sendText(chat_id, msg.enterTransaction);
-  }
   // AGENT FLOW
   if (btnId === "user_agent") {
     await session.setState(userId, "AGENT_TRANSACTION", { lang });
@@ -630,9 +729,6 @@ async function handleReply(message, whapi) {
     }
   }
 }
-// ============================================================
-// FLOW HANDLER
-// ============================================================
 async function handleFlow(message, state, whapi) {
   const { chat_id, from: userId } = message;
   const text = (message.text?.body || "").trim();
@@ -642,31 +738,42 @@ async function handleFlow(message, state, whapi) {
   const msg = messages[lang];
   console.log("STATE : ", state);
   switch (state) {
-    case "AGENT_TRANSACTION": {
-      session.setState(userId, "AGENT_DOC_NUMBER", {
-        ...stateData,
-        transactionType: text,
-      });
+    // case "AGENT_TRANSACTION": {
+    //   session.setState(userId, "AGENT_DOC_NUMBER", {
+    //     ...stateData,
+    //     transactionType: text,
+    //   });
 
-      await whapi.sendText(chat_id, msg.enterDocNo);
-      return true;
-    }
+    //   await whapi.sendText(chat_id, msg.enterDocNo);
+    //   return true;
+    // }
 
     case "AGENT_DOC_NUMBER": {
       const data = await session.get(userId);
 
-      session.setState(userId, "AGENT_DOC_TYPE", {
-        ...data,
-        docNumber: text,
-      });
+      await session.delete(userId);
 
-      await whapi.sendButtons(chat_id, msg.selectDocType, [
-        { id: "agent_gatepass", title: "Gate Pass" },
-        { id: "agent_intercity", title: "Intercity" },
-        { id: "agent_other", title: "Other" },
-      ]);
+      await whapi.sendText(
+        chat_id,
+        `✅ Document submitted!\n\n` +
+          `📑 Transaction: *${data.transactionType}*\n` +
+          `🔢 Doc No: *${data.docNumber}*\n` +
+          `📄 Type: *${otherType}*`,
+      );
 
       return true;
+      // session.setState(userId, "AGENT_DOC_TYPE", {
+      //   ...data,
+      //   docNumber: text,
+      // });
+
+      // await whapi.sendButtons(chat_id, msg.selectDocType, [
+      //   { id: "agent_gatepass", title: "Gate Pass" },
+      //   { id: "agent_intercity", title: "Intercity" },
+      //   { id: "agent_other", title: "Other" },
+      // ]);
+
+      // return true;
     }
     case "DRIVER_OTHER_INPUT": {
       const otherType = text;
@@ -740,7 +847,8 @@ async function handleFlow(message, state, whapi) {
 const messages = {
   english: {
     selectDoc: "📦 Select document type:",
-    enterTransaction: "📑 Enter *Transaction Type* (e.g., Invoice, SO):",
+    enterTransaction: "📑 Enter *Transaction Type* :",
+    enterTransactionSubType: "📑 Enter *Transaction Sub Type* :",
     enterDocNo: "🔢 Enter *Document Number*:",
     selectDocType: "📄 Select Document Type:",
     successDoc: (
@@ -796,10 +904,6 @@ const messages = {
       `📄 Aina: *${type}*`,
   },
 };
-// ============================================================
-// EXPORT
-// ============================================================
-
 module.exports = {
   handleMessage,
   handleInteractive,
